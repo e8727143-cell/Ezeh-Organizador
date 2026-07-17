@@ -159,13 +159,21 @@ const ContentCard = React.memo(({ item, theme, onClick, onTogglePublish }: { ite
 
 export default function App() {
   const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem('organizer-theme');
-    return (saved as Theme) || 'dark';
+    try {
+      const saved = localStorage.getItem('organizer-theme');
+      return (saved as Theme) || 'dark';
+    } catch (e) {
+      return 'dark';
+    }
   });
 
   const [weeks, setWeeks] = useState<Week[]>(() => {
-    const saved = localStorage.getItem('organizer-weeks-v2');
-    if (saved) return JSON.parse(saved);
+    try {
+      const saved = localStorage.getItem('organizer-weeks-v2');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Error parsing weeks:', e);
+    }
     return [
       { name: 'Semana 1', color: '#DC2626' },
       { name: 'Semana 2', color: '#DC2626' },
@@ -175,8 +183,13 @@ export default function App() {
   });
   
   const [items, setItems] = useState<ContentItem[]>(() => {
-    const saved = localStorage.getItem('organizer-items-v2');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('organizer-items-v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Error parsing items:', e);
+      return [];
+    }
   });
   
   const [selectedCategory, setSelectedCategory] = useState('Semana 1');
@@ -501,7 +514,7 @@ export default function App() {
                       type="date"
                       min={new Date().toISOString().split('T')[0]}
                       className={`w-full px-6 py-4 rounded-3xl font-bold border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all ${theme === 'dark' ? 'bg-black text-white border border-red-900/20' : 'bg-white text-black shadow-sm'}`}
-                      value={selectedItem.publishDate}
+                      value={selectedItem.publishDate || ''}
                       onSave={(val: string) => updateItem(selectedItem.id, { publishDate: val })}
                     />
                   </div>
@@ -535,7 +548,7 @@ export default function App() {
                     <BufferedInput 
                       placeholder="Título aquí..."
                       className={`w-full px-6 py-5 rounded-2xl text-xl font-black tracking-tight border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all ${theme === 'dark' ? 'bg-black text-white placeholder:text-slate-800 border border-red-900/20' : 'bg-white text-black shadow-sm placeholder:text-slate-300'}`}
-                      value={selectedItem.title}
+                      value={selectedItem.title || ''}
                       onSave={(val: string) => updateItem(selectedItem.id, { title: val })}
                     />
                   </div>
@@ -633,7 +646,7 @@ export default function App() {
                   <BufferedTextarea 
                     placeholder="Escribe el guion aquí..."
                     className={`w-full h-[calc(100vh-280px)] px-10 py-10 rounded-[40px] text-xl font-bold leading-relaxed border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all resize-none ${theme === 'dark' ? 'bg-black text-white placeholder:text-slate-800 border border-red-900/20' : 'bg-white text-black shadow-sm placeholder:text-slate-300'}`}
-                    value={selectedItem.script}
+                    value={selectedItem.script || ''}
                     onSave={(val: string) => updateItem(selectedItem.id, { script: val })}
                   />
                 </div>
