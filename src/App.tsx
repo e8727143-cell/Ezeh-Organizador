@@ -50,6 +50,113 @@ interface ContentItem {
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const PRESET_COLORS = ['#DC2626', '#2563EB', '#059669', '#7C3AED', '#DB2777', '#EA580C', '#111827'];
 
+// Optimized Input Components to prevent full app re-renders on every keystroke
+const BufferedInput = React.memo(({ value, onSave, className, placeholder, type = "text", min }: any) => {
+  const [localValue, setLocalValue] = useState(value);
+  useEffect(() => { setLocalValue(value); }, [value]);
+  return (
+    <input 
+      type={type}
+      min={min}
+      value={localValue}
+      placeholder={placeholder}
+      className={className}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onBlur={() => localValue !== value && onSave(localValue)}
+    />
+  );
+});
+
+const BufferedTextarea = React.memo(({ value, onSave, className, placeholder }: any) => {
+  const [localValue, setLocalValue] = useState(value);
+  useEffect(() => { setLocalValue(value); }, [value]);
+  return (
+    <textarea 
+      value={localValue}
+      placeholder={placeholder}
+      className={className}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onBlur={() => localValue !== value && onSave(localValue)}
+    />
+  );
+});
+
+// Optimized Content Card Component
+const ContentCard = React.memo(({ item, theme, onClick, onTogglePublish }: { item: ContentItem, theme: string, onClick: () => void, onTogglePublish: (e: React.MouseEvent) => void }) => (
+  <motion.div 
+    layoutId={item.id}
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, scale: 0.95 }}
+    whileHover={{ y: -5 }}
+    onClick={onClick}
+    className={`group rounded-[40px] border-2 transition-all cursor-pointer relative overflow-hidden flex flex-col ${
+      item.isPublished 
+        ? 'bg-emerald-600/5 border-emerald-500/20 hover:border-emerald-500' 
+        : theme === 'dark' ? 'bg-black border-red-900/20 hover:border-red-600/50' : 'bg-white border-red-100 hover:border-red-600/50 shadow-xl shadow-red-100/20'
+    }`}
+  >
+    {item.publishDate && (
+      <div className="px-8 pt-6 pb-2">
+        <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${item.isPublished ? 'text-emerald-600' : 'text-red-600 opacity-60'}`}>
+          {new Date(item.publishDate).toLocaleDateString('es-ES')}
+        </span>
+      </div>
+    )}
+
+    <div className="relative aspect-video overflow-hidden mx-6 mt-2 rounded-[24px]">
+      {item.thumbnail ? (
+        <img src={item.thumbnail} loading="lazy" className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${item.isPublished ? '' : 'grayscale group-hover:grayscale-0'}`} referrerPolicy="no-referrer" />
+      ) : (
+        <div className={`w-full h-full flex items-center justify-center ${theme === 'dark' ? 'bg-slate-900' : 'bg-slate-100'}`}>
+          <ImageIcon className="w-12 h-12 text-slate-400 opacity-20" />
+        </div>
+      )}
+      <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
+        <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg ${item.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
+          {item.day}
+        </span>
+      </div>
+    </div>
+    
+    <div className="p-8 pt-6 space-y-6">
+      <h4 className={`text-2xl font-black tracking-tighter uppercase italic line-clamp-2 leading-none transition-colors ${item.isPublished ? 'text-emerald-700' : 'group-hover:text-red-600'}`}>
+        {item.title || 'Sin Título'}
+      </h4>
+      
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${item.isPublished ? 'bg-emerald-500/10 text-emerald-600' : theme === 'dark' ? 'bg-red-900/20 text-red-500' : 'bg-red-50 text-red-600'}`}>
+          <FileText className="w-5 h-5" />
+        </div>
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Guión</span>
+          <span className={`text-xs font-bold truncate max-w-[150px] ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+            {item.script ? `${item.script.substring(0, 30)}...` : 'Sin guión'}
+          </span>
+        </div>
+      </div>
+
+      <button 
+        onClick={onTogglePublish}
+        className={`w-full flex items-center gap-3 px-6 py-4 rounded-[24px] text-[10px] font-black uppercase tracking-widest transition-all active:scale-[0.98] border-2 ${
+          item.isPublished 
+            ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
+            : theme === 'dark' ? 'bg-transparent border-red-900/30 text-slate-500 hover:border-red-600/50' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-red-600/50'
+        }`}
+      >
+        <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center transition-colors ${
+          item.isPublished 
+            ? 'bg-white border-white text-emerald-600' 
+            : 'border-slate-400 text-transparent'
+        }`}>
+          {item.isPublished && <Check className="w-3 h-3 stroke-[4px]" />}
+        </div>
+        {item.isPublished ? 'Publicado' : 'Marcar como Publicado'}
+      </button>
+    </div>
+  </motion.div>
+));
+
 export default function App() {
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('organizer-theme');
@@ -154,116 +261,9 @@ export default function App() {
       .sort((a, b) => b.createdAt - a.createdAt);
   }, [items, selectedCategory]);
 
-  // Optimized Content Card Component
-  const ContentCard = useMemo(() => React.memo(({ item, theme, onClick, onTogglePublish }: { item: ContentItem, theme: string, onClick: () => void, onTogglePublish: (e: React.MouseEvent) => void }) => (
-    <motion.div 
-      layoutId={item.id}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ y: -5 }}
-      onClick={onClick}
-      className={`group rounded-[40px] border-2 transition-all cursor-pointer relative overflow-hidden flex flex-col ${
-        item.isPublished 
-          ? 'bg-emerald-600/5 border-emerald-500/20 hover:border-emerald-500' 
-          : theme === 'dark' ? 'bg-black border-red-900/20 hover:border-red-600/50' : 'bg-white border-red-100 hover:border-red-600/50 shadow-xl shadow-red-100/20'
-      }`}
-    >
-      {item.publishDate && (
-        <div className="px-8 pt-6 pb-2">
-          <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${item.isPublished ? 'text-emerald-600' : 'text-red-600 opacity-60'}`}>
-            {new Date(item.publishDate).toLocaleDateString('es-ES')}
-          </span>
-        </div>
-      )}
-
-      <div className="relative aspect-video overflow-hidden mx-6 mt-2 rounded-[24px]">
-        {item.thumbnail ? (
-          <img src={item.thumbnail} loading="lazy" className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${item.isPublished ? '' : 'grayscale group-hover:grayscale-0'}`} referrerPolicy="no-referrer" />
-        ) : (
-          <div className={`w-full h-full flex items-center justify-center ${theme === 'dark' ? 'bg-slate-900' : 'bg-slate-100'}`}>
-            <ImageIcon className="w-12 h-12 text-slate-400 opacity-20" />
-          </div>
-        )}
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-          <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg ${item.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
-            {item.day}
-          </span>
-        </div>
-      </div>
-      
-      <div className="p-8 pt-6 space-y-6">
-        <h4 className={`text-2xl font-black tracking-tighter uppercase italic line-clamp-2 leading-none transition-colors ${item.isPublished ? 'text-emerald-700' : 'group-hover:text-red-600'}`}>
-          {item.title || 'Sin Título'}
-        </h4>
-        
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${item.isPublished ? 'bg-emerald-500/10 text-emerald-600' : theme === 'dark' ? 'bg-red-900/20 text-red-500' : 'bg-red-50 text-red-600'}`}>
-            <FileText className="w-5 h-5" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Guión</span>
-            <span className={`text-xs font-bold truncate max-w-[150px] ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
-              {item.script ? `${item.script.substring(0, 30)}...` : 'Sin guión'}
-            </span>
-          </div>
-        </div>
-
-        <button 
-          onClick={onTogglePublish}
-          className={`w-full flex items-center gap-3 px-6 py-4 rounded-[24px] text-[10px] font-black uppercase tracking-widest transition-all active:scale-[0.98] border-2 ${
-            item.isPublished 
-              ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
-              : theme === 'dark' ? 'bg-transparent border-red-900/30 text-slate-500 hover:border-red-600/50' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-red-600/50'
-          }`}
-        >
-          <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center transition-colors ${
-            item.isPublished 
-              ? 'bg-white border-white text-emerald-600' 
-              : 'border-slate-400 text-transparent'
-          }`}>
-            {item.isPublished && <Check className="w-3 h-3 stroke-[4px]" />}
-          </div>
-          {item.isPublished ? 'Publicado' : 'Marcar como Publicado'}
-        </button>
-      </div>
-    </motion.div>
-  )), []);
-
   const currentWeekColor = useMemo(() => {
     return weeks.find(w => w.name === selectedCategory)?.color || '#DC2626';
   }, [weeks, selectedCategory]);
-
-  // Optimized Input Components to prevent full app re-renders on every keystroke
-  const BufferedInput = React.memo(({ value, onSave, className, placeholder, type = "text", min }: any) => {
-    const [localValue, setLocalValue] = useState(value);
-    useEffect(() => { setLocalValue(value); }, [value]);
-    return (
-      <input 
-        type={type}
-        min={min}
-        value={localValue}
-        placeholder={placeholder}
-        className={className}
-        onChange={(e) => setLocalValue(e.target.value)}
-        onBlur={() => localValue !== value && onSave(localValue)}
-      />
-    );
-  });
-
-  const BufferedTextarea = React.memo(({ value, onSave, className, placeholder }: any) => {
-    const [localValue, setLocalValue] = useState(value);
-    useEffect(() => { setLocalValue(value); }, [value]);
-    return (
-      <textarea 
-        value={localValue}
-        placeholder={placeholder}
-        className={className}
-        onChange={(e) => setLocalValue(e.target.value)}
-        onBlur={() => localValue !== value && onSave(localValue)}
-      />
-    );
-  });
 
   const copyToClipboard = async (text: string) => {
     try {
