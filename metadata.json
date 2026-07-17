@@ -1,0 +1,6 @@
+{
+  "name": "Ezeh Organizador",
+  "description": "Un organizador de contenido semanal profesional con sidebar persistente.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
