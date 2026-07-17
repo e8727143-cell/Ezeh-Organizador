@@ -96,7 +96,7 @@ const ContentCard = React.memo(({ item, theme, onClick, onTogglePublish }: { ite
         : theme === 'dark' ? 'bg-black border-red-900/20 hover:border-red-600/50' : 'bg-white border-red-100 hover:border-red-600/50 shadow-xl shadow-red-100/20'
     }`}
   >
-    {item.publishDate && (
+    {item.publishDate && !isNaN(new Date(item.publishDate).getTime()) && (
       <div className="px-8 pt-6 pb-2">
         <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${item.isPublished ? 'text-emerald-600' : 'text-red-600 opacity-60'}`}>
           {new Date(item.publishDate).toLocaleDateString('es-ES')}
@@ -169,27 +169,32 @@ export default function App() {
 
   const [weeks, setWeeks] = useState<Week[]>(() => {
     try {
-      const saved = localStorage.getItem('organizer-weeks-v2');
-      if (saved) return JSON.parse(saved);
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('organizer-weeks-v2');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
     } catch (e) {
       console.error('Error parsing weeks:', e);
     }
-    return [
-      { name: 'Semana 1', color: '#DC2626' },
-      { name: 'Semana 2', color: '#DC2626' },
-      { name: 'Semana 3', color: '#DC2626' },
-      { name: 'Semana 4', color: '#DC2626' }
-    ];
+    return [{ name: 'Semana 1', color: '#DC2626' }];
   });
   
   const [items, setItems] = useState<ContentItem[]>(() => {
     try {
-      const saved = localStorage.getItem('organizer-items-v2');
-      return saved ? JSON.parse(saved) : [];
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('organizer-items-v2');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      }
     } catch (e) {
       console.error('Error parsing items:', e);
-      return [];
     }
+    return [];
   });
   
   const [selectedCategory, setSelectedCategory] = useState('Semana 1');
@@ -266,6 +271,7 @@ export default function App() {
   const selectedItem = useMemo(() => items.find(i => i.id === selectedItemId), [items, selectedItemId]);
 
   const filteredItems = useMemo(() => {
+    if (!Array.isArray(items)) return [];
     return items
       .filter(item => {
         const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;

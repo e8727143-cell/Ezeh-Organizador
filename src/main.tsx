@@ -1,10 +1,26 @@
-import {StrictMode} from 'react';
+import React, {StrictMode, useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
+import App from './App';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const Root = () => {
+  useEffect(() => {
+    console.log('Ezeh Organizer: App Mounted Successfully');
+    window.addEventListener('error', (event) => {
+      console.error('Ezeh Organizer: Global Error Caught:', event.error);
+    });
+  }, []);
+  
+  return (
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
+};
+
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  createRoot(rootElement).render(<Root />);
+} else {
+  console.error('Ezeh Organizer: Root element not found');
+}
