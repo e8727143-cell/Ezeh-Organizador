@@ -19,10 +19,12 @@ import {
   Calendar,
   ChevronRight,
   Check,
-  Settings
+  Settings,
+  AlignLeft,
+  ChevronLeft
 } from 'lucide-react';
 import {motion, AnimatePresence} from 'motion/react';
-import React, {useState, useEffect, useMemo, useRef} from 'react';
+import React, {useState, useEffect, useMemo, useRef, useCallback} from 'react';
 import {jsPDF} from 'jspdf';
 
 type Theme = 'light' | 'dark';
@@ -41,6 +43,7 @@ interface ContentItem {
   day: string;
   createdAt: number;
   publishDate: string;
+  description?: string;
   isPublished: boolean;
 }
 
@@ -78,14 +81,18 @@ export default function App() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Debounce localStorage sync to improve performance
   useEffect(() => {
-    try {
-      localStorage.setItem('organizer-items-v2', JSON.stringify(items));
-      localStorage.setItem('organizer-weeks-v2', JSON.stringify(weeks));
-      localStorage.setItem('organizer-theme', theme);
-    } catch (err) {
-      console.error('Error saving to localStorage:', err);
-    }
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem('organizer-items-v2', JSON.stringify(items));
+        localStorage.setItem('organizer-weeks-v2', JSON.stringify(weeks));
+        localStorage.setItem('organizer-theme', theme);
+      } catch (err) {
+        console.error('Error saving to localStorage:', err);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
   }, [items, weeks, theme]);
 
   const addWeek = () => {
@@ -126,9 +133,9 @@ export default function App() {
     setDaySelector(null);
   };
 
-  const updateItem = (id: string, updates: Partial<ContentItem>) => {
-    setItems(items.map(item => item.id === id ? { ...item, ...updates } : item));
-  };
+  const updateItem = useCallback((id: string, updates: Partial<ContentItem>) => {
+    setItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
+  }, []);
 
   const deleteItem = (id: string) => {
     setItems(items.filter(item => item.id !== id));
@@ -147,9 +154,116 @@ export default function App() {
       .sort((a, b) => b.createdAt - a.createdAt);
   }, [items, selectedCategory]);
 
+  // Optimized Content Card Component
+  const ContentCard = useMemo(() => React.memo(({ item, theme, onClick, onTogglePublish }: { item: ContentItem, theme: string, onClick: () => void, onTogglePublish: (e: React.MouseEvent) => void }) => (
+    <motion.div 
+      layoutId={item.id}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      whileHover={{ y: -5 }}
+      onClick={onClick}
+      className={`group rounded-[40px] border-2 transition-all cursor-pointer relative overflow-hidden flex flex-col ${
+        item.isPublished 
+          ? 'bg-emerald-600/5 border-emerald-500/20 hover:border-emerald-500' 
+          : theme === 'dark' ? 'bg-black border-red-900/20 hover:border-red-600/50' : 'bg-white border-red-100 hover:border-red-600/50 shadow-xl shadow-red-100/20'
+      }`}
+    >
+      {item.publishDate && (
+        <div className="px-8 pt-6 pb-2">
+          <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${item.isPublished ? 'text-emerald-600' : 'text-red-600 opacity-60'}`}>
+            {new Date(item.publishDate).toLocaleDateString('es-ES')}
+          </span>
+        </div>
+      )}
+
+      <div className="relative aspect-video overflow-hidden mx-6 mt-2 rounded-[24px]">
+        {item.thumbnail ? (
+          <img src={item.thumbnail} loading="lazy" className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${item.isPublished ? '' : 'grayscale group-hover:grayscale-0'}`} referrerPolicy="no-referrer" />
+        ) : (
+          <div className={`w-full h-full flex items-center justify-center ${theme === 'dark' ? 'bg-slate-900' : 'bg-slate-100'}`}>
+            <ImageIcon className="w-12 h-12 text-slate-400 opacity-20" />
+          </div>
+        )}
+        <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
+          <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg ${item.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
+            {item.day}
+          </span>
+        </div>
+      </div>
+      
+      <div className="p-8 pt-6 space-y-6">
+        <h4 className={`text-2xl font-black tracking-tighter uppercase italic line-clamp-2 leading-none transition-colors ${item.isPublished ? 'text-emerald-700' : 'group-hover:text-red-600'}`}>
+          {item.title || 'Sin Título'}
+        </h4>
+        
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${item.isPublished ? 'bg-emerald-500/10 text-emerald-600' : theme === 'dark' ? 'bg-red-900/20 text-red-500' : 'bg-red-50 text-red-600'}`}>
+            <FileText className="w-5 h-5" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Guión</span>
+            <span className={`text-xs font-bold truncate max-w-[150px] ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+              {item.script ? `${item.script.substring(0, 30)}...` : 'Sin guión'}
+            </span>
+          </div>
+        </div>
+
+        <button 
+          onClick={onTogglePublish}
+          className={`w-full flex items-center gap-3 px-6 py-4 rounded-[24px] text-[10px] font-black uppercase tracking-widest transition-all active:scale-[0.98] border-2 ${
+            item.isPublished 
+              ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
+              : theme === 'dark' ? 'bg-transparent border-red-900/30 text-slate-500 hover:border-red-600/50' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-red-600/50'
+          }`}
+        >
+          <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center transition-colors ${
+            item.isPublished 
+              ? 'bg-white border-white text-emerald-600' 
+              : 'border-slate-400 text-transparent'
+          }`}>
+            {item.isPublished && <Check className="w-3 h-3 stroke-[4px]" />}
+          </div>
+          {item.isPublished ? 'Publicado' : 'Marcar como Publicado'}
+        </button>
+      </div>
+    </motion.div>
+  )), []);
+
   const currentWeekColor = useMemo(() => {
     return weeks.find(w => w.name === selectedCategory)?.color || '#DC2626';
   }, [weeks, selectedCategory]);
+
+  // Optimized Input Components to prevent full app re-renders on every keystroke
+  const BufferedInput = React.memo(({ value, onSave, className, placeholder, type = "text", min }: any) => {
+    const [localValue, setLocalValue] = useState(value);
+    useEffect(() => { setLocalValue(value); }, [value]);
+    return (
+      <input 
+        type={type}
+        min={min}
+        value={localValue}
+        placeholder={placeholder}
+        className={className}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={() => localValue !== value && onSave(localValue)}
+      />
+    );
+  });
+
+  const BufferedTextarea = React.memo(({ value, onSave, className, placeholder }: any) => {
+    const [localValue, setLocalValue] = useState(value);
+    useEffect(() => { setLocalValue(value); }, [value]);
+    return (
+      <textarea 
+        value={localValue}
+        placeholder={placeholder}
+        className={className}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={() => localValue !== value && onSave(localValue)}
+      />
+    );
+  });
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -381,22 +495,20 @@ export default function App() {
                 className="space-y-10"
               >
                 {/* Header Actions: Publication Date (Left) & Delete (Right) */}
-                <div className="flex items-end justify-between">
-                  <div className="w-72 space-y-2">
-                    <label className="text-[10px] font-black text-red-600 uppercase tracking-[0.2em] flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5" /> Fecha de Publicación
-                    </label>
-                    <input 
+                <div className="flex items-center justify-between">
+                  <div className="w-72">
+                    <BufferedInput 
                       type="date"
-                      className={`w-full px-6 py-4 rounded-2xl font-bold border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all ${theme === 'dark' ? 'bg-black text-white border border-red-900/20' : 'bg-white text-black shadow-sm'}`}
+                      min={new Date().toISOString().split('T')[0]}
+                      className={`w-full px-6 py-4 rounded-3xl font-bold border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all ${theme === 'dark' ? 'bg-black text-white border border-red-900/20' : 'bg-white text-black shadow-sm'}`}
                       value={selectedItem.publishDate}
-                      onChange={(e) => updateItem(selectedItem.id, { publishDate: e.target.value })}
+                      onSave={(val: string) => updateItem(selectedItem.id, { publishDate: val })}
                     />
                   </div>
 
                   <button 
                     onClick={() => setConfirmDelete({ id: selectedItem.id, type: 'item' })}
-                    className="flex items-center gap-3 px-8 py-4 bg-red-600/5 text-red-600 hover:bg-red-600 hover:text-white rounded-[24px] text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 group/del"
+                    className="flex items-center gap-3 px-8 py-4 bg-red-600/5 text-red-600 hover:bg-red-600 hover:text-white rounded-3xl text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 group/del"
                   >
                     <Trash2 className="w-4 h-4 transition-transform group-hover/del:scale-110" />
                     Eliminar Contenido
@@ -420,12 +532,33 @@ export default function App() {
                         <Copy className="w-4 h-4" />
                       </button>
                     </div>
-                    <input 
-                      type="text"
+                    <BufferedInput 
                       placeholder="Título aquí..."
                       className={`w-full px-6 py-5 rounded-2xl text-xl font-black tracking-tight border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all ${theme === 'dark' ? 'bg-black text-white placeholder:text-slate-800 border border-red-900/20' : 'bg-white text-black shadow-sm placeholder:text-slate-300'}`}
                       value={selectedItem.title}
-                      onChange={(e) => updateItem(selectedItem.id, { title: e.target.value })}
+                      onSave={(val: string) => updateItem(selectedItem.id, { title: val })}
+                    />
+                  </div>
+
+                  {/* Description Section */}
+                  <div className="group relative">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-[10px] font-black text-red-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <AlignLeft className="w-3.5 h-3.5" /> Descripción del Vídeo
+                      </label>
+                      <button 
+                        onClick={() => copyToClipboard(selectedItem.description || '')}
+                        className="p-2 hover:bg-red-600 hover:text-white rounded-xl transition-all text-red-600 bg-red-600/5 active:scale-90"
+                        title="Copiar Descripción"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <BufferedTextarea 
+                      placeholder="Escribe la descripción aquí..."
+                      className={`w-full bg-transparent border-2 ${theme === 'dark' ? 'border-red-900/20 focus:border-red-600/50' : 'border-slate-100 focus:border-red-600/50'} rounded-3xl p-6 text-sm font-medium transition-all outline-none min-h-[120px] resize-none`}
+                      value={selectedItem.description || ''}
+                      onSave={(val: string) => updateItem(selectedItem.id, { description: val })}
                     />
                   </div>
 
@@ -497,113 +630,49 @@ export default function App() {
                       <button onClick={() => downloadSrt(selectedItem.script, `script-${selectedItem.id}`)} className="p-2 hover:bg-red-600 hover:text-white rounded-xl transition-all text-red-600 bg-red-600/5 text-[10px] font-black uppercase tracking-tighter" title="Descargar SRT">SRT</button>
                     </div>
                   </div>
-                  <textarea 
+                  <BufferedTextarea 
                     placeholder="Escribe el guion aquí..."
                     className={`w-full h-[calc(100vh-280px)] px-10 py-10 rounded-[40px] text-xl font-bold leading-relaxed border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all resize-none ${theme === 'dark' ? 'bg-black text-white placeholder:text-slate-800 border border-red-900/20' : 'bg-white text-black shadow-sm placeholder:text-slate-300'}`}
                     value={selectedItem.script}
-                    onChange={(e) => updateItem(selectedItem.id, { script: e.target.value })}
+                    onSave={(val: string) => updateItem(selectedItem.id, { script: val })}
                   />
                 </div>
               </div>
             </motion.div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-20">
-                {filteredItems.length === 0 ? (
-                  <div className="col-span-full h-[40vh] flex flex-col items-center justify-center border-4 border-dashed border-red-600/10 rounded-[64px]">
-                    <div className="w-24 h-24 bg-red-600/5 rounded-[40px] flex items-center justify-center mb-6">
-                      <Filter className="w-12 h-12 text-red-600/20" />
-                    </div>
-                    <p className="text-2xl font-black uppercase tracking-tighter italic">No hay contenido</p>
-                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-2">Empieza añadiendo contenido a una semana</p>
+            <motion.div
+              key="list"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="pb-20 max-w-7xl mx-auto"
+            >
+              {filteredItems.length === 0 ? (
+                <div className="h-[40vh] flex flex-col items-center justify-center border-4 border-dashed border-red-600/10 rounded-[64px]">
+                  <div className="w-24 h-24 bg-red-600/5 rounded-[40px] flex items-center justify-center mb-6">
+                    <Filter className="w-12 h-12 text-red-600/20" />
                   </div>
-                ) : (
-                  filteredItems.map(item => (
-                    <motion.div 
+                  <p className="text-2xl font-black uppercase tracking-tighter italic text-center">No hay contenido</p>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-2 text-center">Empieza añadiendo contenido a una semana</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {filteredItems.map(item => (
+                    <ContentCard 
                       key={item.id}
-                      layout
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
+                      item={item}
+                      theme={theme}
                       onClick={() => setSelectedItemId(item.id)}
-                      className={`group rounded-[40px] border-2 transition-all cursor-pointer relative overflow-hidden flex flex-col ${
-                        item.isPublished 
-                          ? 'bg-emerald-600/5 border-emerald-500/20 hover:border-emerald-500' 
-                          : theme === 'dark' ? 'bg-black border-red-900/20 hover:border-red-600/50' : 'bg-white border-red-100 hover:border-red-600/50 shadow-xl shadow-red-100/20'
-                      }`}
-                    >
-                      {/* Publication Date at the Top */}
-                      {item.publishDate && (
-                        <div className="px-8 pt-6 pb-2">
-                          <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${item.isPublished ? 'text-emerald-600' : 'text-red-600 opacity-60'}`}>
-                            {(() => {
-                              try {
-                                return new Date(item.publishDate).toLocaleDateString('es-ES');
-                              } catch (e) {
-                                return item.publishDate;
-                              }
-                            })()}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Thumbnail Container 16:9 */}
-                      <div className="relative aspect-video overflow-hidden mx-6 mt-2 rounded-[24px]">
-                        {item.thumbnail ? (
-                          <img src={item.thumbnail} className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${item.isPublished ? '' : 'grayscale group-hover:grayscale-0'}`} />
-                        ) : (
-                          <div className={`w-full h-full flex items-center justify-center ${theme === 'dark' ? 'bg-slate-900' : 'bg-slate-100'}`}>
-                            <ImageIcon className="w-12 h-12 text-slate-400 opacity-20" />
-                          </div>
-                        )}
-                        <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-                          <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg ${item.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
-                            {item.day}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="p-8 pt-6 space-y-6">
-                        <h4 className={`text-2xl font-black tracking-tighter uppercase italic line-clamp-2 leading-none transition-colors ${item.isPublished ? 'text-emerald-700' : 'group-hover:text-red-600'}`}>
-                          {item.title || 'Sin Título'}
-                        </h4>
-                        
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${item.isPublished ? 'bg-emerald-500/10 text-emerald-600' : theme === 'dark' ? 'bg-red-900/20 text-red-500' : 'bg-red-50 text-red-600'}`}>
-                            <FileText className="w-5 h-5" />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className={`text-[10px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Guion</span>
-                            <p className={`text-xs font-bold uppercase tracking-tight ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
-                              {item.script ? `${item.script.split(' ').length} palabras` : 'Vacio'}
-                            </p>
-                          </div>
-                        </div>
-
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateItem(item.id, { isPublished: !item.isPublished });
-                          }}
-                          className={`w-full flex items-center gap-3 px-6 py-4 rounded-[24px] text-[10px] font-black uppercase tracking-widest transition-all active:scale-[0.98] border-2 ${
-                            item.isPublished 
-                              ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
-                              : theme === 'dark' ? 'bg-transparent border-red-900/30 text-slate-500 hover:border-red-600/50' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-red-600/50'
-                          }`}
-                        >
-                          <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center transition-colors ${
-                            item.isPublished 
-                              ? 'bg-white border-white text-emerald-600' 
-                              : 'border-slate-400 text-transparent'
-                          }`}>
-                            {item.isPublished && <Check className="w-3 h-3 stroke-[4px]" />}
-                          </div>
-                          {item.isPublished ? 'Publicado' : 'Marcar como Publicado'}
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))
-                )}
-              </div>
-            )}
+                      onTogglePublish={(e) => {
+                        e.stopPropagation();
+                        updateItem(item.id, { isPublished: !item.isPublished });
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
           </div>
         </main>
       </div>
