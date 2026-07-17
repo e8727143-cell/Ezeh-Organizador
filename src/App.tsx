@@ -1,3 +1,5 @@
+import React, {useState, useEffect, useMemo, useRef, useCallback} from 'react';
+import './index.css';
 import {
   Plus,
   LayoutGrid,
@@ -24,7 +26,6 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import {motion, AnimatePresence} from 'motion/react';
-import React, {useState, useEffect, useMemo, useRef, useCallback} from 'react';
 import {jsPDF} from 'jspdf';
 
 type Theme = 'light' | 'dark';
@@ -160,7 +161,7 @@ const ContentCard = React.memo(({ item, theme, onClick, onTogglePublish }: { ite
 export default function App() {
   const [theme, setTheme] = useState<Theme>(() => {
     try {
-      const saved = localStorage.getItem('organizer-theme');
+      const saved = localStorage.getItem('organizer-theme-v4');
       return (saved as Theme) || 'dark';
     } catch (e) {
       return 'dark';
@@ -170,7 +171,7 @@ export default function App() {
   const [weeks, setWeeks] = useState<Week[]>(() => {
     try {
       if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('organizer-weeks-v2');
+        const saved = localStorage.getItem('organizer-weeks-v4');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -185,7 +186,7 @@ export default function App() {
   const [items, setItems] = useState<ContentItem[]>(() => {
     try {
       if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('organizer-items-v2');
+        const saved = localStorage.getItem('organizer-items-v4');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) return parsed;
@@ -210,9 +211,9 @@ export default function App() {
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem('organizer-items-v2', JSON.stringify(items));
-        localStorage.setItem('organizer-weeks-v2', JSON.stringify(weeks));
-        localStorage.setItem('organizer-theme', theme);
+        localStorage.setItem('organizer-items-v4', JSON.stringify(items));
+        localStorage.setItem('organizer-weeks-v4', JSON.stringify(weeks));
+        localStorage.setItem('organizer-theme-v4', theme);
       } catch (err) {
         console.error('Error saving to localStorage:', err);
       }
