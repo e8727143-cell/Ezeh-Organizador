@@ -97,10 +97,13 @@ const ContentCard = React.memo(({ item, theme, onClick, onTogglePublish }: { ite
         : theme === 'dark' ? 'bg-black border-red-900/20 hover:border-red-600/50' : 'bg-white border-red-100 hover:border-red-600/50 shadow-xl shadow-red-100/20'
     }`}
   >
-    {item.publishDate && !isNaN(new Date(item.publishDate).getTime()) && (
-      <div className="px-8 pt-6 pb-2">
+    {item.publishDate && !isNaN(new Date(item.publishDate + 'T00:00:00').getTime()) && (
+      <div className="px-8 pt-6 pb-2 flex items-center justify-between">
         <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${item.isPublished ? 'text-emerald-600' : 'text-red-600 opacity-60'}`}>
-          {new Date(item.publishDate).toLocaleDateString('es-ES')}
+          {new Date(item.publishDate + 'T00:00:00').toLocaleDateString('es-ES')}
+        </span>
+        <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-sm ${item.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
+          {item.day}
         </span>
       </div>
     )}
@@ -113,11 +116,6 @@ const ContentCard = React.memo(({ item, theme, onClick, onTogglePublish }: { ite
           <ImageIcon className="w-12 h-12 text-slate-400 opacity-20" />
         </div>
       )}
-      <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-        <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg ${item.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
-          {item.day}
-        </span>
-      </div>
     </div>
     
     <div className="p-8 pt-6 space-y-6">
@@ -516,14 +514,18 @@ export default function App() {
               >
                 {/* Header Actions: Publication Date (Left) & Delete (Right) */}
                 <div className="flex items-center justify-between">
-                  <div className="w-72">
-                    <BufferedInput 
-                      type="date"
-                      min={new Date().toISOString().split('T')[0]}
-                      className={`w-full px-6 py-4 rounded-3xl font-bold border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all ${theme === 'dark' ? 'bg-black text-white border border-red-900/20' : 'bg-white text-black shadow-sm'}`}
-                      value={selectedItem.publishDate || ''}
-                      onSave={(val: string) => updateItem(selectedItem.id, { publishDate: val })}
-                    />
+                  <div className="flex items-center gap-4">
+                    <div className="w-72">
+                      <BufferedInput 
+                        type="date"
+                        className={`w-full px-6 py-4 rounded-3xl font-bold border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all ${theme === 'dark' ? 'bg-black text-white border border-red-900/20' : 'bg-white text-black shadow-sm'}`}
+                        value={selectedItem.publishDate || ''}
+                        onSave={(val: string) => updateItem(selectedItem.id, { publishDate: val })}
+                      />
+                    </div>
+                    <span className={`px-5 py-3 rounded-2xl text-[12px] font-black uppercase tracking-widest shadow-lg ${selectedItem.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
+                      {selectedItem.day}
+                    </span>
                   </div>
 
                   <button 
