@@ -379,64 +379,74 @@ export default function App() {
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
     };
 
-    const segments = text.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+(?:\s+|$)/g) || [text];
-    let currentBlockText = "";
+    // 1. Prepare words from the script
+    const words = text.trim().split(/\s+/);
+    let currentBlockWords: string[] = [];
 
-    const finishBlock = (content: string) => {
-      if (!content.trim()) return;
+    const pushBlock = (wordsToPush: string[]) => {
+      const content = wordsToPush.join(' ').trim();
+      if (!content) return;
       const startTime = formatTime(currentTime);
       const endTime = formatTime(currentTime + 30);
-      blocks.push(`${blockIndex}\n${startTime} --> ${endTime}\n${content.trim()}\n`);
+      blocks.push(`${blockIndex}\n${startTime} --> ${endTime}\n${content}\n`);
       currentTime += 30 + 15;
       blockIndex++;
     };
 
-    segments.forEach((segment) => {
-      const trimmedSegment = segment.trim();
-      if (!trimmedSegment) return;
+    // 2. Generate Blocks
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const potentialBlock = [...currentBlockWords, word].join(' ');
 
-      if (trimmedSegment.length > 500) {
-        if (currentBlockText) {
-          finishBlock(currentBlockText);
-          currentBlockText = "";
-        }
-        const words = trimmedSegment.split(/\s+/);
-        let tempBlock = "";
-        words.forEach(word => {
-          if ((tempBlock + " " + word).length > 500) {
-            finishBlock(tempBlock);
-            tempBlock = word;
-          } else {
-            tempBlock += (tempBlock ? " " : "") + word;
+      if (potentialBlock.length > 500) {
+        // Find last punctuation in currentBlockWords to split gracefully
+        let splitIndex = -1;
+        for (let j = currentBlockWords.length - 1; j >= 0; j--) {
+          if (/[.!?]$/.test(currentBlockWords[j])) {
+            splitIndex = j;
+            break;
           }
-        });
-        currentBlockText = tempBlock;
-      } else if (currentBlockText && (currentBlockText.length + 1 + trimmedSegment.length > 500)) {
-        finishBlock(currentBlockText);
-        currentBlockText = trimmedSegment;
+        }
+
+        if (splitIndex !== -1) {
+          // Split at punctuation
+          const toPush = currentBlockWords.slice(0, splitIndex + 1);
+          const remaining = currentBlockWords.slice(splitIndex + 1);
+          pushBlock(toPush);
+          currentBlockWords = [...remaining, word];
+        } else {
+          // No punctuation found, must split at last word
+          pushBlock(currentBlockWords);
+          currentBlockWords = [word];
+        }
       } else {
-        currentBlockText += (currentBlockText ? " " : "") + trimmedSegment;
+        currentBlockWords.push(word);
       }
-    });
-
-    if (currentBlockText) finishBlock(currentBlockText);
-
-    // --- VERIFICATION PHASE ---
-    const srtTextOnly = blocks.map(b => b.split('\n').slice(2).join('\n')).join(' ').trim().replace(/\s+/g, ' ');
-    const originalTextNormalized = text.trim().replace(/\s+/g, ' ');
-
-    // Character by character simulation for the progress bar
-    const totalChars = originalTextNormalized.length;
-    const step = Math.max(1, Math.floor(totalChars / 50)); // 50 steps for smoothness
-
-    for (let i = 0; i <= totalChars; i += step) {
-      setVerifyProgress(Math.min(100, Math.round((i / totalChars) * 100)));
-      await new Promise(resolve => setTimeout(resolve, 20)); // Small delay for visual effect
+    }
+    // Push the final block
+    if (currentBlockWords.length > 0) {
+      pushBlock(currentBlockWords);
     }
 
+    // --- VERIFICATION PHASE ---
+    // Extract only the text content from SRT blocks for comparison
+    const srtTextOnly = blocks.map(b => {
+      const lines = b.trim().split('\n');
+      return lines.slice(2).join(' ');
+    }).join(' ').replace(/\s+/g, '').trim();
+
+    const originalTextNormalized = text.replace(/\s+/g, '').trim();
+
+    // Visual progress simulation
+    const steps = 50;
+    for (let i = 0; i <= steps; i++) {
+      setVerifyProgress(Math.round((i / steps) * 100));
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+
+    // Strict character comparison (ignoring only whitespace)
     if (srtTextOnly === originalTextNormalized) {
       setVerifyStatus('success');
-      setVerifyProgress(100);
       
       const srtContent = blocks.join('\n');
       const blob = new Blob([srtContent], { type: 'text/plain' });
@@ -450,8 +460,8 @@ export default function App() {
       setTimeout(() => setIsVerifying(false), 1500);
     } else {
       setVerifyStatus('error');
-      console.error("Mismatch detected in SRT generation", { original: originalTextNormalized, generated: srtTextOnly });
-      // We still allow closing it
+      // For debugging, though we don't show internal logs to user
+      console.error("Mismatch detected in SRT generation. Characters missing or added.");
       setTimeout(() => setIsVerifying(false), 3000);
     }
   };
