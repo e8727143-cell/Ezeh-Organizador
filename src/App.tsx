@@ -691,6 +691,41 @@ export default function App() {
 
                 {/* Right Column: Script Section */}
                 <div className="flex-1 min-w-0">
+                  <AnimatePresence>
+                    {isVerifying && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                        animate={{ opacity: 1, height: "auto", marginBottom: 16 }}
+                        exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className={`p-5 rounded-3xl border transition-colors ${theme === "dark" ? "bg-red-600/5 border-red-900/20" : "bg-red-50 border-red-100"}`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${verifyStatus === "success" ? "bg-emerald-500 text-white" : verifyStatus === "error" ? "bg-red-600 text-white" : "bg-red-600 text-white animate-pulse"}`}>
+                                {verifyStatus === "success" ? <Check className="w-4 h-4" /> : verifyStatus === "error" ? <X className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                              </div>
+                              <div>
+                                <h5 className={`text-[10px] font-black uppercase tracking-widest ${verifyStatus === "success" ? "text-emerald-600" : "text-red-600"}`}>
+                                  {verifyStatus === "analyzing" ? "Analizando Integridad..." : verifyStatus === "success" ? "Verificación Exitosa" : "Error de Sincronización"}
+                                </h5>
+                                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Comparando guión con SRT generado</p>
+                              </div>
+                            </div>
+                            <span className="text-xl font-black text-red-600 italic tracking-tighter">{verifyProgress}%</span>
+                          </div>
+                          <div className={`h-2 w-full rounded-full overflow-hidden ${theme === "dark" ? "bg-black/40" : "bg-white"}`}>
+                            <motion.div 
+                              className={`h-full ${verifyStatus === "success" ? "bg-emerald-500" : verifyStatus === "error" ? "bg-red-500" : "bg-red-600"}`}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${verifyProgress}%` }}
+                              transition={{ duration: 0.1 }}
+                            />
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   <div className="flex items-center justify-between mb-3">
                     <label className="text-[10px] font-black text-red-600 uppercase tracking-[0.2em] flex items-center gap-2">
                       <FileText className="w-3.5 h-3.5" /> Guion / Script
