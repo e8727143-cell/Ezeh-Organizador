@@ -359,13 +359,8 @@ export default function App() {
   };
 
   const downloadSrt = (text: string, filename: string) => {
-    // SRT Specs: Try to end in sentences. 30s duration, 15s interval
     const blocks: string[] = [];
-    
-    // Split by sentence terminators followed by space or end of string
-    const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+(?:\s+|$)/g) || [text];
-    
-    let currentBlock = "";
+    let remainingText = text.trim();
     let blockIndex = 1;
     let currentTime = 0;
 
@@ -373,36 +368,73 @@ export default function App() {
       const h = Math.floor(seconds / 3600);
       const m = Math.floor((seconds % 3600) / 60);
       const s = Math.floor(seconds % 60);
-      const ms = Math.floor((seconds % 1) * 1000);
+      const ms = 0;
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
     };
 
-    sentences.forEach((sentence) => {
-      const trimmedSentence = sentence.trim();
-      if (!trimmedSentence) return;
+    while (remainingText.length > 0) {
+      let splitIndex = 500;
+      
+      if (remainingText.length <= 500) {
+        splitIndex = remainingText.length;
+      } else {
+        // Take a look at the first 501 chars to find a boundary
+        const chunk = remainingText.substring(0, 501);
+        
+        // Priority 1: Sentence terminators (. ! ?)
+        const lastSentenceTerminator = Math.max(
+          chunk.lastIndexOf('. '),
+          chunk.lastIndexOf('! '),
+          chunk.lastIndexOf('? '),
+          chunk.lastIndexOf('.\n'),
+          chunk.lastIndexOf('!\n'),
+          chunk.lastIndexOf('?\n'),
+          chunk.lastIndexOf('.\"'),
+          chunk.lastIndexOf('!\"'),
+          chunk.lastIndexOf('?\"')
+        );
 
-      // If adding this sentence exceeds a reasonable limit (e.g. 500 chars) 
-      // OR if the current block already has content and we want to keep it manageable
-      if (currentBlock && (currentBlock.length + trimmedSentence.length > 600)) {
+        if (lastSentenceTerminator !== -1 && lastSentenceTerminator < 500) {
+          splitIndex = lastSentenceTerminator + 1;
+        } else {
+          // Priority 2: Other punctuation marks
+          const lastPunctuation = Math.max(
+            chunk.lastIndexOf(', '),
+            chunk.lastIndexOf('; '),
+            chunk.lastIndexOf(': '),
+            chunk.lastIndexOf('), ')
+          );
+          
+          if (lastPunctuation !== -1 && lastPunctuation < 500) {
+            splitIndex = lastPunctuation + 1;
+          } else {
+            // Priority 3: Word boundary (space)
+            const lastSpace = chunk.lastIndexOf(' ');
+            if (lastSpace !== -1 && lastSpace < 500) {
+              splitIndex = lastSpace;
+            } else {
+              // Priority 4: Hard split at 500 (emergency case)
+              splitIndex = 500;
+            }
+          }
+        }
+      }
+
+      const blockText = remainingText.substring(0, splitIndex).trim();
+      if (blockText) {
         const startTime = formatTime(currentTime);
         const endTime = formatTime(currentTime + 30);
-        blocks.push(`${blockIndex}\n${startTime} --> ${endTime}\n${currentBlock.trim()}\n`);
+        blocks.push(`${blockIndex}\n${startTime} --> ${endTime}\n${blockText}\n`);
         
         currentTime += 30 + 15;
-        currentBlock = trimmedSentence;
         blockIndex++;
-      } else {
-        currentBlock += (currentBlock ? " " : "") + trimmedSentence;
       }
-    });
-
-    if (currentBlock) {
-      const startTime = formatTime(currentTime);
-      const endTime = formatTime(currentTime + 30);
-      blocks.push(`${blockIndex}\n${startTime} --> ${endTime}\n${currentBlock.trim()}\n`);
+      
+      remainingText = remainingText.substring(splitIndex).trim();
     }
 
-    const blob = new Blob([blocks.join('\n')], { type: 'text/plain' });
+    const srtContent = blocks.join('\n');
+    const blob = new Blob([srtContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
