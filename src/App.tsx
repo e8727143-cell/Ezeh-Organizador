@@ -354,10 +354,17 @@ export default function App() {
     doc.save(filename + '.pdf');
   };
 
+  const sanitizeFilename = (name: string) => {
+    return name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+  };
+
   const downloadSrt = (text: string, filename: string) => {
-    // SRT Specs: 30s duration, 15s interval, 500 max chars
+    // SRT Specs: Try to end in sentences. 30s duration, 15s interval
     const blocks: string[] = [];
-    const words = text.split(/\s+/);
+    
+    // Split by sentence terminators followed by space or end of string
+    const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+(?:\s+|$)/g) || [text];
+    
     let currentBlock = "";
     let blockIndex = 1;
     let currentTime = 0;
@@ -370,17 +377,22 @@ export default function App() {
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
     };
 
-    words.forEach((word) => {
-      if ((currentBlock + " " + word).length > 500) {
+    sentences.forEach((sentence) => {
+      const trimmedSentence = sentence.trim();
+      if (!trimmedSentence) return;
+
+      // If adding this sentence exceeds a reasonable limit (e.g. 500 chars) 
+      // OR if the current block already has content and we want to keep it manageable
+      if (currentBlock && (currentBlock.length + trimmedSentence.length > 600)) {
         const startTime = formatTime(currentTime);
         const endTime = formatTime(currentTime + 30);
         blocks.push(`${blockIndex}\n${startTime} --> ${endTime}\n${currentBlock.trim()}\n`);
         
         currentTime += 30 + 15;
-        currentBlock = word;
+        currentBlock = trimmedSentence;
         blockIndex++;
       } else {
-        currentBlock += (currentBlock ? " " : "") + word;
+        currentBlock += (currentBlock ? " " : "") + trimmedSentence;
       }
     });
 
@@ -394,7 +406,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = filename + '.srt';
+    link.download = (filename || 'script') + '.srt';
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -647,9 +659,9 @@ export default function App() {
                         <Copy className="w-4 h-4" />
                       </button>
                       <div className="h-4 w-px bg-red-600/20 mx-1" />
-                      <button onClick={() => downloadTxt(selectedItem.script, `script-${selectedItem.id}`)} className="p-2 hover:bg-red-600 hover:text-white rounded-xl transition-all text-red-600 bg-red-600/5 text-[10px] font-black uppercase tracking-tighter" title="Descargar TXT">TXT</button>
-                      <button onClick={() => downloadPdf(selectedItem.script, `script-${selectedItem.id}`)} className="p-2 hover:bg-red-600 hover:text-white rounded-xl transition-all text-red-600 bg-red-600/5 text-[10px] font-black uppercase tracking-tighter" title="Descargar PDF">PDF</button>
-                      <button onClick={() => downloadSrt(selectedItem.script, `script-${selectedItem.id}`)} className="p-2 hover:bg-red-600 hover:text-white rounded-xl transition-all text-red-600 bg-red-600/5 text-[10px] font-black uppercase tracking-tighter" title="Descargar SRT">SRT</button>
+                      <button onClick={() => downloadTxt(selectedItem.script, sanitizeFilename(selectedItem.title) || `script-${selectedItem.id}`)} className="p-2 hover:bg-red-600 hover:text-white rounded-xl transition-all text-red-600 bg-red-600/5 text-[10px] font-black uppercase tracking-tighter" title="Descargar TXT">TXT</button>
+                      <button onClick={() => downloadPdf(selectedItem.script, sanitizeFilename(selectedItem.title) || `script-${selectedItem.id}`)} className="p-2 hover:bg-red-600 hover:text-white rounded-xl transition-all text-red-600 bg-red-600/5 text-[10px] font-black uppercase tracking-tighter" title="Descargar PDF">PDF</button>
+                      <button onClick={() => downloadSrt(selectedItem.script, sanitizeFilename(selectedItem.title) || `script-${selectedItem.id}`)} className="p-2 hover:bg-red-600 hover:text-white rounded-xl transition-all text-red-600 bg-red-600/5 text-[10px] font-black uppercase tracking-tighter" title="Descargar SRT">SRT</button>
                     </div>
                   </div>
                   <BufferedTextarea 
