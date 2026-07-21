@@ -358,9 +358,16 @@ export default function App() {
     return name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
   };
 
-  const downloadSrt = (text: string, filename: string) => {
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyProgress, setVerifyProgress] = useState(0);
+  const [verifyStatus, setVerifyStatus] = useState<'idle' | 'analyzing' | 'success' | 'error'>('idle');
+
+  const downloadSrt = async (text: string, filename: string) => {
+    setIsVerifying(true);
+    setVerifyProgress(0);
+    setVerifyStatus('analyzing');
+
     const blocks: string[] = [];
-    let remainingText = text.trim();
     let blockIndex = 1;
     let currentTime = 0;
 
@@ -372,75 +379,81 @@ export default function App() {
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
     };
 
-    while (remainingText.length > 0) {
-      let splitIndex = 500;
-      
-      if (remainingText.length <= 500) {
-        splitIndex = remainingText.length;
-      } else {
-        // Take a look at the first 501 chars to find a boundary
-        const chunk = remainingText.substring(0, 501);
-        
-        // Priority 1: Sentence terminators (. ! ?)
-        const lastSentenceTerminator = Math.max(
-          chunk.lastIndexOf('. '),
-          chunk.lastIndexOf('! '),
-          chunk.lastIndexOf('? '),
-          chunk.lastIndexOf('.\n'),
-          chunk.lastIndexOf('!\n'),
-          chunk.lastIndexOf('?\n'),
-          chunk.lastIndexOf('.\"'),
-          chunk.lastIndexOf('!\"'),
-          chunk.lastIndexOf('?\"')
-        );
+    const segments = text.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+(?:\s+|$)/g) || [text];
+    let currentBlockText = "";
 
-        if (lastSentenceTerminator !== -1 && lastSentenceTerminator < 500) {
-          splitIndex = lastSentenceTerminator + 1;
-        } else {
-          // Priority 2: Other punctuation marks
-          const lastPunctuation = Math.max(
-            chunk.lastIndexOf(', '),
-            chunk.lastIndexOf('; '),
-            chunk.lastIndexOf(': '),
-            chunk.lastIndexOf('), ')
-          );
-          
-          if (lastPunctuation !== -1 && lastPunctuation < 500) {
-            splitIndex = lastPunctuation + 1;
-          } else {
-            // Priority 3: Word boundary (space)
-            const lastSpace = chunk.lastIndexOf(' ');
-            if (lastSpace !== -1 && lastSpace < 500) {
-              splitIndex = lastSpace;
-            } else {
-              // Priority 4: Hard split at 500 (emergency case)
-              splitIndex = 500;
-            }
-          }
+    const finishBlock = (content: string) => {
+      if (!content.trim()) return;
+      const startTime = formatTime(currentTime);
+      const endTime = formatTime(currentTime + 30);
+      blocks.push(`${blockIndex}\n${startTime} --> ${endTime}\n${content.trim()}\n`);
+      currentTime += 30 + 15;
+      blockIndex++;
+    };
+
+    segments.forEach((segment) => {
+      const trimmedSegment = segment.trim();
+      if (!trimmedSegment) return;
+
+      if (trimmedSegment.length > 500) {
+        if (currentBlockText) {
+          finishBlock(currentBlockText);
+          currentBlockText = "";
         }
+        const words = trimmedSegment.split(/\s+/);
+        let tempBlock = "";
+        words.forEach(word => {
+          if ((tempBlock + " " + word).length > 500) {
+            finishBlock(tempBlock);
+            tempBlock = word;
+          } else {
+            tempBlock += (tempBlock ? " " : "") + word;
+          }
+        });
+        currentBlockText = tempBlock;
+      } else if (currentBlockText && (currentBlockText.length + 1 + trimmedSegment.length > 500)) {
+        finishBlock(currentBlockText);
+        currentBlockText = trimmedSegment;
+      } else {
+        currentBlockText += (currentBlockText ? " " : "") + trimmedSegment;
       }
+    });
 
-      const blockText = remainingText.substring(0, splitIndex).trim();
-      if (blockText) {
-        const startTime = formatTime(currentTime);
-        const endTime = formatTime(currentTime + 30);
-        blocks.push(`${blockIndex}\n${startTime} --> ${endTime}\n${blockText}\n`);
-        
-        currentTime += 30 + 15;
-        blockIndex++;
-      }
-      
-      remainingText = remainingText.substring(splitIndex).trim();
+    if (currentBlockText) finishBlock(currentBlockText);
+
+    // --- VERIFICATION PHASE ---
+    const srtTextOnly = blocks.map(b => b.split('\n').slice(2).join('\n')).join(' ').trim().replace(/\s+/g, ' ');
+    const originalTextNormalized = text.trim().replace(/\s+/g, ' ');
+
+    // Character by character simulation for the progress bar
+    const totalChars = originalTextNormalized.length;
+    const step = Math.max(1, Math.floor(totalChars / 50)); // 50 steps for smoothness
+
+    for (let i = 0; i <= totalChars; i += step) {
+      setVerifyProgress(Math.min(100, Math.round((i / totalChars) * 100)));
+      await new Promise(resolve => setTimeout(resolve, 20)); // Small delay for visual effect
     }
 
-    const srtContent = blocks.join('\n');
-    const blob = new Blob([srtContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = (filename || 'script') + '.srt';
-    link.click();
-    URL.revokeObjectURL(url);
+    if (srtTextOnly === originalTextNormalized) {
+      setVerifyStatus('success');
+      setVerifyProgress(100);
+      
+      const srtContent = blocks.join('\n');
+      const blob = new Blob([srtContent], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = (filename || 'script') + '.srt';
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      setTimeout(() => setIsVerifying(false), 1500);
+    } else {
+      setVerifyStatus('error');
+      console.error("Mismatch detected in SRT generation", { original: originalTextNormalized, generated: srtTextOnly });
+      // We still allow closing it
+      setTimeout(() => setIsVerifying(false), 3000);
+    }
   };
 
   const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light');
