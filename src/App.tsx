@@ -590,7 +590,27 @@ export default function App() {
                         onSave={(val: string) => updateItem(selectedItem.id, { publishDate: val })}
                       />
                     </div>
-                    <span className={`px-5 py-3 rounded-2xl text-[12px] font-black uppercase tracking-widest shadow-lg ${selectedItem.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
+                    <div className="relative group">
+                      <select 
+                        value={selectedItem.category}
+                        onChange={(e) => {
+                          const newWeek = e.target.value;
+                          updateItem(selectedItem.id, { category: newWeek });
+                          setSelectedCategory(newWeek);
+                        }}
+                        className={`appearance-none pl-6 pr-12 py-4 rounded-3xl font-black uppercase tracking-widest text-[10px] border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all cursor-pointer ${theme === 'dark' ? 'bg-black text-red-500 border border-red-900/20' : 'bg-white text-red-600 shadow-sm shadow-red-100'}`}
+                      >
+                        {weeks.map(w => (
+                          <option key={w.name} value={w.name} className={theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}>
+                            {w.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <ChevronRight className="w-4 h-4 text-red-600 rotate-90" />
+                      </div>
+                    </div>
+                    <span className={`px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg ${selectedItem.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
                       {selectedItem.day}
                     </span>
                   </div>
