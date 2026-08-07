@@ -46,6 +46,7 @@ interface ContentItem {
   publishDate: string;
   description?: string;
   isPublished: boolean;
+  order: number;
 }
 
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -83,7 +84,7 @@ const BufferedTextarea = React.memo(({ value, onSave, className, placeholder }: 
 });
 
 // Optimized Content Card Component
-const ContentCard = React.memo(({ item, theme, onClick, onTogglePublish }: { item: ContentItem, theme: string, onClick: () => void, onTogglePublish: (e: React.MouseEvent) => void }) => (
+const ContentCard = React.memo(({ item, theme, onClick, onTogglePublish, onMove }: { item: ContentItem, theme: string, onClick: () => void, onTogglePublish: (e: React.MouseEvent) => void, onMove: (direction: 'left' | 'right') => void }) => (
   <motion.div 
     layoutId={item.id}
     initial={{ opacity: 0, y: 20 }}
@@ -127,11 +128,25 @@ const ContentCard = React.memo(({ item, theme, onClick, onTogglePublish }: { ite
         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${item.isPublished ? 'bg-emerald-500/10 text-emerald-600' : theme === 'dark' ? 'bg-red-900/20 text-red-500' : 'bg-red-50 text-red-600'}`}>
           <FileText className="w-5 h-5" />
         </div>
-        <div className="flex flex-col">
+        <div className="flex flex-col flex-1">
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Guión</span>
-          <span className={`text-xs font-bold truncate max-w-[150px] ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+          <span className={`text-xs font-bold truncate max-w-[120px] ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
             {item.script ? `${item.script.substring(0, 30)}...` : 'Sin guión'}
           </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button 
+            onClick={(e) => { e.stopPropagation(); onMove('left'); }}
+            className={`p-2 rounded-xl transition-all ${theme === 'dark' ? 'hover:bg-red-600/20 text-red-500' : 'hover:bg-red-50 text-red-600'}`}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); onMove('right'); }}
+            className={`p-2 rounded-xl transition-all ${theme === 'dark' ? 'hover:bg-red-600/20 text-red-500' : 'hover:bg-red-50 text-red-600'}`}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -241,6 +256,7 @@ export default function App() {
   };
 
   const addItem = (week: string, day: string) => {
+    const maxOrder = items.length > 0 ? Math.max(...items.map(i => i.order || 0)) : 0;
     const newItem: ContentItem = {
       id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
       title: '',
@@ -251,6 +267,7 @@ export default function App() {
       createdAt: Date.now(),
       publishDate: new Date().toISOString().split('T')[0],
       isPublished: false,
+      order: maxOrder + 1,
     };
     setItems([newItem, ...items]);
     setSelectedItemId(newItem.id);
@@ -260,6 +277,29 @@ export default function App() {
   const updateItem = useCallback((id: string, updates: Partial<ContentItem>) => {
     setItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
   }, []);
+
+  const moveItem = (id: string, direction: 'left' | 'right') => {
+    const categoryItems = items
+      .filter(i => i.category === selectedCategory)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    const index = categoryItems.findIndex(i => i.id === id);
+    if (index === -1) return;
+
+    const newIndex = direction === 'left' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= categoryItems.length) return;
+
+    const itemA = categoryItems[index];
+    const itemB = categoryItems[newIndex];
+
+    const newItems = items.map(item => {
+      if (item.id === itemA.id) return { ...item, order: itemB.order };
+      if (item.id === itemB.id) return { ...item, order: itemA.order };
+      return item;
+    });
+
+    setItems(newItems);
+  };
 
   const deleteItem = (id: string) => {
     setItems(items.filter(item => item.id !== id));
@@ -276,7 +316,7 @@ export default function App() {
         const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
         return matchesCategory;
       })
-      .sort((a, b) => b.createdAt - a.createdAt);
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [items, selectedCategory]);
 
   const currentWeekColor = useMemo(() => {
@@ -610,9 +650,23 @@ export default function App() {
                         <ChevronRight className="w-4 h-4 text-red-600 rotate-90" />
                       </div>
                     </div>
-                    <span className={`px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg ${selectedItem.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
-                      {selectedItem.day}
-                    </span>
+
+                    <div className="relative group">
+                      <select 
+                        value={selectedItem.day}
+                        onChange={(e) => updateItem(selectedItem.id, { day: e.target.value })}
+                        className={`appearance-none pl-6 pr-12 py-4 rounded-3xl font-black uppercase tracking-widest text-[10px] border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all cursor-pointer ${theme === 'dark' ? 'bg-black text-red-500 border border-red-900/20' : 'bg-white text-red-600 shadow-sm shadow-red-100'}`}
+                      >
+                        {DAYS.map(day => (
+                          <option key={day} value={day} className={theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}>
+                            {day}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <ChevronRight className="w-4 h-4 text-red-600 rotate-90" />
+                      </div>
+                    </div>
                   </div>
 
                   <button 
@@ -811,6 +865,7 @@ export default function App() {
                         e.stopPropagation();
                         updateItem(item.id, { isPublished: !item.isPublished });
                       }}
+                      onMove={(dir) => moveItem(item.id, dir)}
                     />
                   ))}
                 </div>
