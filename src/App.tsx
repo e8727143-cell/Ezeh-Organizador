@@ -23,10 +23,28 @@ import {
   Check,
   Settings,
   AlignLeft,
-  ChevronLeft
+  ChevronLeft,
+  GripVertical
 } from 'lucide-react';
 import {motion, AnimatePresence} from 'motion/react';
 import {jsPDF} from 'jspdf';
+import {
+  DndContext, 
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 type Theme = 'light' | 'dark';
 
@@ -83,93 +101,118 @@ const BufferedTextarea = React.memo(({ value, onSave, className, placeholder }: 
   );
 });
 
-// Optimized Content Card Component
-const ContentCard = React.memo(({ item, theme, onClick, onTogglePublish, onMove }: { item: ContentItem, theme: string, onClick: () => void, onTogglePublish: (e: React.MouseEvent) => void, onMove: (direction: 'left' | 'right') => void }) => (
-  <motion.div 
-    layoutId={item.id}
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, scale: 0.95 }}
-    whileHover={{ y: -5 }}
-    onClick={onClick}
-    className={`group rounded-[40px] border-2 transition-all cursor-pointer relative overflow-hidden flex flex-col ${
-      item.isPublished 
-        ? 'bg-emerald-600/5 border-emerald-500/20 hover:border-emerald-500' 
-        : theme === 'dark' ? 'bg-black border-red-900/20 hover:border-red-600/50' : 'bg-white border-red-100 hover:border-red-600/50 shadow-xl shadow-red-100/20'
-    }`}
-  >
-    {item.publishDate && !isNaN(new Date(item.publishDate + 'T00:00:00').getTime()) && (
-      <div className="px-8 pt-6 pb-2 flex items-center justify-between">
-        <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${item.isPublished ? 'text-emerald-600' : 'text-red-600 opacity-60'}`}>
-          {new Date(item.publishDate + 'T00:00:00').toLocaleDateString('es-ES')}
-        </span>
-        <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-sm ${item.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
-          {item.day}
-        </span>
-      </div>
-    )}
+// Optimized Content Card Component with Sortable support
+const ContentCard = React.memo(({ 
+  item, 
+  theme, 
+  onClick, 
+  onTogglePublish 
+}: { 
+  item: ContentItem, 
+  theme: string, 
+  onClick: () => void, 
+  onTogglePublish: (e: React.MouseEvent) => void
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: item.id });
 
-    <div className="relative aspect-video overflow-hidden mx-6 mt-2 rounded-[24px]">
-      {item.thumbnail ? (
-        <img src={item.thumbnail} loading="lazy" className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${item.isPublished ? '' : 'grayscale group-hover:grayscale-0'}`} referrerPolicy="no-referrer" />
-      ) : (
-        <div className={`w-full h-full flex items-center justify-center ${theme === 'dark' ? 'bg-slate-900' : 'bg-slate-100'}`}>
-          <ImageIcon className="w-12 h-12 text-slate-400 opacity-20" />
-        </div>
-      )}
-    </div>
-    
-    <div className="p-8 pt-6 space-y-6">
-      <h4 className={`text-2xl font-black tracking-tighter uppercase italic line-clamp-2 leading-none transition-colors ${item.isPublished ? 'text-emerald-700' : 'group-hover:text-red-600'}`}>
-        {item.title || 'Sin Título'}
-      </h4>
-      
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${item.isPublished ? 'bg-emerald-500/10 text-emerald-600' : theme === 'dark' ? 'bg-red-900/20 text-red-500' : 'bg-red-50 text-red-600'}`}>
-          <FileText className="w-5 h-5" />
-        </div>
-        <div className="flex flex-col flex-1">
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Guión</span>
-          <span className={`text-xs font-bold truncate max-w-[120px] ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
-            {item.script ? `${item.script.substring(0, 30)}...` : 'Sin guión'}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <button 
-            onClick={(e) => { e.stopPropagation(); onMove('left'); }}
-            className={`p-2 rounded-xl transition-all ${theme === 'dark' ? 'hover:bg-red-600/20 text-red-500' : 'hover:bg-red-50 text-red-600'}`}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); onMove('right'); }}
-            className={`p-2 rounded-xl transition-all ${theme === 'dark' ? 'hover:bg-red-600/20 text-red-500' : 'hover:bg-red-50 text-red-600'}`}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 'auto',
+    opacity: isDragging ? 0.6 : 1,
+  };
 
-      <button 
-        onClick={onTogglePublish}
-        className={`w-full flex items-center gap-3 px-6 py-4 rounded-[24px] text-[10px] font-black uppercase tracking-widest transition-all active:scale-[0.98] border-2 ${
+  return (
+    <div ref={setNodeRef} style={style} className="relative group h-full">
+      <motion.div 
+        layoutId={item.id}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        whileHover={{ y: -5 }}
+        onClick={onClick}
+        className={`group rounded-[40px] border-2 transition-all cursor-pointer relative overflow-hidden flex flex-col h-full ${
           item.isPublished 
-            ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
-            : theme === 'dark' ? 'bg-transparent border-red-900/30 text-slate-500 hover:border-red-600/50' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-red-600/50'
+            ? 'bg-emerald-600/5 border-emerald-500/20 hover:border-emerald-500' 
+            : theme === 'dark' ? 'bg-black border-red-900/20 hover:border-red-600/50' : 'bg-white border-red-100 hover:border-red-600/50 shadow-xl shadow-red-100/20'
         }`}
       >
-        <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center transition-colors ${
-          item.isPublished 
-            ? 'bg-white border-white text-emerald-600' 
-            : 'border-slate-400 text-transparent'
-        }`}>
-          {item.isPublished && <Check className="w-3 h-3 stroke-[4px]" />}
+        {item.publishDate && !isNaN(new Date(item.publishDate + 'T00:00:00').getTime()) && (
+          <div className="px-8 pt-6 pb-2 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div 
+                {...attributes} 
+                {...listeners}
+                className="p-2 cursor-grab active:cursor-grabbing hover:bg-slate-500/10 rounded-lg transition-colors"
+              >
+                <GripVertical className="w-4 h-4 text-slate-400" />
+              </div>
+              <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${item.isPublished ? 'text-emerald-600' : 'text-red-600 opacity-60'}`}>
+                {new Date(item.publishDate + 'T00:00:00').toLocaleDateString('es-ES')}
+              </span>
+            </div>
+            <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-sm ${item.isPublished ? 'bg-emerald-500 text-white' : 'bg-red-600 text-white'}`}>
+              {item.day}
+            </span>
+          </div>
+        )}
+
+        <div className="relative aspect-video overflow-hidden mx-6 mt-2 rounded-[24px]">
+          {item.thumbnail ? (
+            <img src={item.thumbnail} loading="lazy" className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${item.isPublished ? '' : 'grayscale group-hover:grayscale-0'}`} referrerPolicy="no-referrer" />
+          ) : (
+            <div className={`w-full h-full flex items-center justify-center ${theme === 'dark' ? 'bg-slate-900' : 'bg-slate-100'}`}>
+              <ImageIcon className="w-12 h-12 text-slate-400 opacity-20" />
+            </div>
+          )}
         </div>
-        {item.isPublished ? 'Publicado' : 'Marcar como Publicado'}
-      </button>
+        
+        <div className="p-8 pt-6 space-y-6">
+          <h4 className={`text-2xl font-black tracking-tighter uppercase italic line-clamp-2 leading-none transition-colors ${item.isPublished ? 'text-emerald-700' : 'group-hover:text-red-600'}`}>
+            {item.title || 'Sin Título'}
+          </h4>
+          
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${item.isPublished ? 'bg-emerald-500/10 text-emerald-600' : theme === 'dark' ? 'bg-red-900/20 text-red-500' : 'bg-red-50 text-red-600'}`}>
+              <FileText className="w-5 h-5" />
+            </div>
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Guión</span>
+              <span className={`text-xs font-bold truncate ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+                {item.script ? `${item.script.substring(0, 30)}...` : 'Sin guión'}
+              </span>
+            </div>
+          </div>
+
+          <button 
+            onClick={onTogglePublish}
+            className={`w-full flex items-center gap-3 px-6 py-4 rounded-[24px] text-[10px] font-black uppercase tracking-widest transition-all active:scale-[0.98] border-2 ${
+              item.isPublished 
+                ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
+                : theme === 'dark' ? 'bg-transparent border-red-900/30 text-slate-500 hover:border-red-600/50' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-red-600/50'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center transition-colors ${
+              item.isPublished 
+                ? 'bg-white border-white text-emerald-600' 
+                : 'border-slate-400 text-transparent'
+            }`}>
+              {item.isPublished && <Check className="w-3 h-3 stroke-[4px]" />}
+            </div>
+            {item.isPublished ? 'Publicado' : 'Marcar como Publicado'}
+          </button>
+        </div>
+      </motion.div>
     </div>
-  </motion.div>
-));
+  );
+});
 
 export default function App() {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -308,6 +351,44 @@ export default function App() {
   };
 
   const selectedItem = useMemo(() => items.find(i => i.id === selectedItemId), [items, selectedItemId]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const filtered = items
+      .filter(item => {
+        const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+        return matchesCategory;
+      })
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const oldIndex = filtered.findIndex(i => i.id === active.id);
+    const newIndex = filtered.findIndex(i => i.id === over.id);
+
+    const reorderedFiltered = arrayMove(filtered, oldIndex, newIndex);
+    
+    const updatedItems = items.map(item => {
+      const idx = reorderedFiltered.findIndex(ri => ri.id === item.id);
+      if (idx !== -1) {
+        return { ...item, order: idx };
+      }
+      return item;
+    });
+
+    setItems(updatedItems);
+  };
 
   const filteredItems = useMemo(() => {
     if (!Array.isArray(items)) return [];
@@ -854,21 +935,31 @@ export default function App() {
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-2 text-center">Empieza añadiendo contenido a una semana</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {filteredItems.map(item => (
-                    <ContentCard 
-                      key={item.id}
-                      item={item}
-                      theme={theme}
-                      onClick={() => setSelectedItemId(item.id)}
-                      onTogglePublish={(e) => {
-                        e.stopPropagation();
-                        updateItem(item.id, { isPublished: !item.isPublished });
-                      }}
-                      onMove={(dir) => moveItem(item.id, dir)}
-                    />
-                  ))}
-                </div>
+                <DndContext 
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext 
+                    items={filteredItems.map(i => i.id)}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {filteredItems.map(item => (
+                        <ContentCard 
+                          key={item.id}
+                          item={item}
+                          theme={theme}
+                          onClick={() => setSelectedItemId(item.id)}
+                          onTogglePublish={(e) => {
+                            e.stopPropagation();
+                            updateItem(item.id, { isPublished: !item.isPublished });
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               )}
             </motion.div>
           )}
