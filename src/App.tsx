@@ -175,7 +175,7 @@ const ContentCard = React.memo(({
         </div>
         
         <div className="p-8 pt-6 space-y-6">
-          <h4 className={`text-2xl font-black tracking-tighter uppercase italic line-clamp-2 leading-none transition-colors ${item.isPublished ? 'text-emerald-700' : 'group-hover:text-red-600'}`}>
+          <h4 className={`text-base font-black tracking-tighter uppercase italic leading-tight transition-colors ${item.isPublished ? 'text-emerald-700' : 'group-hover:text-red-600'}`}>
             {item.title || 'Sin Título'}
           </h4>
           
