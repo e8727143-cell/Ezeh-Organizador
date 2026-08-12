@@ -759,9 +759,9 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="flex flex-col xl:flex-row gap-12">
-                  {/* Left Column: Title & Thumbnail */}
-                  <div className="xl:w-[450px] space-y-10 shrink-0">
+                <div className="flex flex-col gap-10">
+                  {/* Top Sections: Title, Description, Thumbnail */}
+                  <div className="w-full space-y-10">
                   {/* Title Section */}
                   <div className="group relative">
                     <div className="flex items-center justify-between mb-3">
@@ -854,8 +854,8 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Right Column: Script Section */}
-                <div className="flex-1 min-w-0">
+                {/* Bottom Section: Script Section */}
+                <div className="w-full">
                   <AnimatePresence>
                     {isVerifying && (
                       <motion.div 
@@ -911,7 +911,7 @@ export default function App() {
                   </div>
                   <BufferedTextarea 
                     placeholder="Escribe el guion aquí..."
-                    className={`w-full h-[calc(100vh-280px)] px-10 py-10 rounded-[40px] text-xl font-bold leading-relaxed border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all resize-none ${theme === 'dark' ? 'bg-black text-white placeholder:text-slate-800 border border-red-900/20' : 'bg-white text-black shadow-sm placeholder:text-slate-300'}`}
+                    className={`w-full min-h-[600px] px-10 py-10 rounded-[40px] text-xl font-bold leading-relaxed border-none outline-none focus:ring-4 focus:ring-red-600/20 transition-all resize-y ${theme === 'dark' ? 'bg-black text-white placeholder:text-slate-800 border border-red-900/20' : 'bg-white text-black shadow-sm placeholder:text-slate-300'}`}
                     value={selectedItem.script || ''}
                     onSave={(val: string) => updateItem(selectedItem.id, { script: val })}
                   />
